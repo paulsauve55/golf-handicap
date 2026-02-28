@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a2e1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Golf Handicap Tracker</title>
+<!-- Capacitor core (loaded from local node_modules after build) -->
+<script src="capacitor.js" onerror="console.log('Running in browser mode')"></script>
+<!-- Google Fonts with local fallback -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-dark: #1a2e1a;
+    --green-mid: #2d5a2d;
+    --green-light: #4a8c4a;
+    --green-accent: #6bbf6b;
+    --fairway: #c8e6c8;
+    --cream: #f5f0e8;
+    --gold: #c9a84c;
+    --sand: #e8d5a0;
+    --text-dark: #1a2e1a;
+    --text-light: #f5f0e8;
+    --border: rgba(74,140,74,0.3);
+    /* Safe area for notched Android devices */
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; overscroll-behavior: none; }
+
+  body {
+    font-family: 'DM Mono', 'Courier New', monospace;
+    background: var(--green-dark);
+    color: var(--text-light);
+    min-height: 100vh;
+    /* Push content below status bar on Android */
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+    padding-left: var(--sal);
+    padding-right: var(--sar);
+    background-image: 
+      radial-gradient(ellipse at 20% 50%, rgba(45,90,45,0.4) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(107,191,107,0.1) 0%, transparent 40%),
+      repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(255,255,255,0.01) 60px, rgba(255,255,255,0.01) 61px),
+      repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(255,255,255,0.01) 60px, rgba(255,255,255,0.01) 61px);
+  }
+
+  header {
+    padding: 2rem 3rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(26,46,26,0.8);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--green-accent);
+    letter-spacing: -0.02em;
+  }
+
+  header span {
+    font-size: 0.75rem;
+    color: var(--gold);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 3rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(26,46,26,0.6);
+  }
+
+  .nav-tab {
+    padding: 1rem 2rem;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--green-accent);
+    opacity: 0.5;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+
+  .nav-tab.active {
+    opacity: 1;
+    border-bottom-color: var(--gold);
+    color: var(--gold);
+  }
+
+  .nav-tab:hover { opacity: 0.8; }
+
+  .page { display: none; padding: 3rem; max-width: 900px; margin: 0 auto; }
+  .page.active { display: block; animation: fadeIn 0.3s ease; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--cream);
+    margin-bottom: 2rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .section-title::before {
+    content: '';
+    width: 4px;
+    height: 1.5rem;
+    background: var(--gold);
+    border-radius: 2px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-group.full-width { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green-accent);
+    opacity: 0.8;
+  }
+
+  input, select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: var(--cream);
+    padding: 0.75rem 1rem;
+    font-family: 'DM Mono', 'Courier New', monospace;
+    font-size: 16px; /* prevents iOS/Android auto-zoom on focus */
+    border-radius: 4px;
+    transition: all 0.2s;
+    outline: none;
+    width: 100%;
+    touch-action: manipulation;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--gold);
+    background: rgba(255,255,255,0.08);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.1);
+  }
+
+  select option { background: var(--green-dark); color: var(--cream); }
+
+  input[readonly] {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: rgba(107,191,107,0.05);
+  }
+
+  .handicap-display {
+    background: linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
+    border: 1px solid var(--gold);
+    border-radius: 8px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .handicap-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: var(--gold);
+    line-height: 1;
+    min-width: 6rem;
+    text-align: center;
+  }
+
+  .handicap-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.7;
+    margin-bottom: 0.25rem;
+  }
+
+  .handicap-formula {
+    font-size: 0.75rem;
+    color: var(--green-accent);
+    opacity: 0.7;
+  }
+
+  .btn {
+    padding: 0.9rem 2.5rem;
+    font-family: 'DM Mono', 'Courier New', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    touch-action: manipulation;
+    min-height: 48px; /* Android minimum touch target */
+  }
+
+  .btn-primary {
+    background: var(--gold);
+    color: var(--green-dark);
+    font-weight: 500;
+  }
+
+  .btn-primary:hover {
+    background: #d4b55a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(201,168,76,0.3);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--green-accent);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover { background: rgba(107,191,107,0.1); border-color: var(--green-accent); }
+
+  .btn-danger {
+    background: transparent;
+    color: #e07070;
+    border: 1px solid rgba(224,112,112,0.3);
+    font-size: 0.65rem;
+    padding: 0.4rem 0.8rem;
+  }
+
+  .btn-danger:hover { background: rgba(224,112,112,0.1); }
+
+  .btn-row { display: flex; gap: 1rem; align-items: center; }
+
+  .table-wrap { overflow-x: auto; margin-top: 1.5rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  thead tr {
+    border-bottom: 1px solid var(--gold);
+  }
+
+  th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(74,140,74,0.1);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: rgba(107,191,107,0.05); }
+
+  td {
+    padding: 0.85rem 1rem;
+    color: var(--cream);
+    opacity: 0.9;
+  }
+
+  td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--green-accent);
+    opacity: 0.4;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    background: rgba(107,191,107,0.15);
+    color: var(--green-accent);
+    border: 1px solid rgba(107,191,107,0.2);
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--green-mid);
+    border: 1px solid var(--green-accent);
+    color: var(--cream);
+    padding: 1rem 1.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  .rating-slope-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    padding: 1rem;
+    background: rgba(107,191,107,0.05);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-pill {
+    text-align: center;
+  }
+
+  .stat-pill .val {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    color: var(--green-accent);
+    line-height: 1;
+  }
+
+  .stat-pill .lbl {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--green-accent);
+    opacity: 0.6;
+    margin-top: 0.25rem;
+  }
+
+  /* CSV Import / Export */
+  .csv-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(201,168,76,0.4);
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .csv-box-title {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .csv-box-title::before {
+    content: '';
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--gold);
+    border-radius: 50%;
+  }
+
+  .csv-format {
+    font-size: 0.7rem;
+    color: var(--green-accent);
+    opacity: 0.7;
+    margin-bottom: 1rem;
+    line-height: 1.8;
+  }
+
+  .csv-format code {
+    background: rgba(107,191,107,0.1);
+    border: 1px solid rgba(107,191,107,0.2);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--cream);
+    display: block;
+    margin-top: 0.4rem;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .drop-zone {
+    border: 1px dashed rgba(107,191,107,0.4);
+    border-radius: 6px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    margin-bottom: 1rem;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    background: rgba(107,191,107,0.07);
+    border-color: var(--green-accent);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer;
+    width: 100%; height: 100%;
+    padding: 0;
+    border: none; background: none;
+  }
+
+  .drop-zone-text {
+    font-size: 0.8rem;
+    color: var(--green-accent);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .drop-zone-text span {
+    display: block;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+  }
+
+  .import-result {
+    font-size: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    margin-top: 0.75rem;
+    display: none;
+  }
+
+  .import-result.success {
+    background: rgba(107,191,107,0.1);
+    border: 1px solid rgba(107,191,107,0.3);
+    color: var(--green-accent);
+    display: block;
+  }
+
+  .import-result.error {
+    background: rgba(224,112,112,0.1);
+    border: 1px solid rgba(224,112,112,0.3);
+    color: #e07070;
+    display: block;
+  }
+
+  .btn-export {
+    background: transparent;
+    color: var(--gold);
+    border: 1px solid rgba(201,168,76,0.4);
+    font-size: 0.7rem;
+    padding: 0.5rem 1.2rem;
+  }
+
+  .btn-export:hover { background: rgba(201,168,76,0.1); }
+
+  /* ── Dashboard ── */
+  .dash-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .year-filter-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 1rem;
+  }
+
+  .year-filter-wrap label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 1;
+  }
+
+  .year-filter-wrap select {
+    background: transparent;
+    border: none;
+    color: var(--cream);
+    font-size: 0.9rem;
+    padding: 0.1rem 0.3rem;
+    width: auto;
+    cursor: pointer;
+    box-shadow: none;
+  }
+
+  .year-filter-wrap select:focus { box-shadow: none; border: none; }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .kpi-card {
+    border-radius: 10px;
+    padding: 1.5rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s;
+  }
+
+  .kpi-card:hover { transform: translateY(-2px); }
+
+  .kpi-handicap {
+    background: linear-gradient(135deg, rgba(201,168,76,0.18), rgba(201,168,76,0.06));
+    border: 1px solid rgba(201,168,76,0.35);
+  }
+
+  .kpi-games {
+    background: linear-gradient(135deg, rgba(107,191,107,0.15), rgba(107,191,107,0.04));
+    border: 1px solid rgba(107,191,107,0.3);
+  }
+
+  .kpi-birdies {
+    background: linear-gradient(135deg, rgba(100,180,255,0.12), rgba(100,180,255,0.03));
+    border: 1px solid rgba(100,180,255,0.25);
+  }
+
+  .kpi-avg {
+    background: linear-gradient(135deg, rgba(200,150,255,0.12), rgba(200,150,255,0.03));
+    border: 1px solid rgba(200,150,255,0.25);
+  }
+
+  .kpi-icon { font-size: 1.4rem; margin-bottom: 0.25rem; }
+
+  .kpi-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.6rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--cream);
+  }
+
+  .kpi-handicap .kpi-value { color: var(--gold); }
+  .kpi-games   .kpi-value  { color: var(--green-accent); }
+  .kpi-birdies .kpi-value  { color: #7ec8ff; }
+  .kpi-avg     .kpi-value  { color: #c8a0ff; }
+
+  .kpi-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--cream);
+    opacity: 0.7;
+    margin-top: 0.25rem;
+  }
+
+  .kpi-sub {
+    font-size: 0.65rem;
+    color: var(--cream);
+    opacity: 0.35;
+    letter-spacing: 0.05em;
+  }
+
+  .chart-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .chart-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--cream);
+    margin-bottom: 0.3rem;
+  }
+
+  .chart-subtitle {
+    font-size: 0.68rem;
+    color: var(--green-accent);
+    opacity: 0.6;
+    letter-spacing: 0.08em;
+    margin-bottom: 1.25rem;
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 220px;
+  }
+
+  .chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+  @media (max-width: 700px) {
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    header { padding: 1.5rem; }
+    .page { padding: 1.5rem; }
+    .nav-tabs { padding: 0 1rem; }
+    .nav-tab { padding: 0.75rem 1rem; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .kpi-value { font-size: 2rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⛳ Handicap</h1>
+  <span>Golf Score Tracker</span>
+</header>
+
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
+  <button class="nav-tab" onclick="showPage('scores')">Scores</button>
+  <button class="nav-tab" onclick="showPage('scores-log')">Score History</button>
+  <button class="nav-tab" onclick="showPage('courses')">Courses</button>
+</div>
+
+<!-- DASHBOARD PAGE -->
+<div id="page-dashboard" class="page active">
+  <div class="dash-header-row">
+    <div class="section-title" style="margin-bottom:0;border:none;padding:0">Dashboard</div>
+    <div class="year-filter-wrap">
+      <label style="margin-right:0.5rem">Year</label>
+      <select id="dash-year" onchange="renderDashboard()"></select>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card kpi-handicap">
+      <div class="kpi-icon">🏌️</div>
+      <div class="kpi-value" id="kpi-hc">—</div>
+      <div class="kpi-label">Handicap Index</div>
+      <div class="kpi-sub" id="kpi-hc-sub">Best 8 of last 20 rounds</div>
+    </div>
+    <div class="kpi-card kpi-games">
+      <div class="kpi-icon">📅</div>
+      <div class="kpi-value" id="kpi-games">—</div>
+      <div class="kpi-label">Rounds Played</div>
+      <div class="kpi-sub" id="kpi-games-sub">in selected year</div>
+    </div>
+    <div class="kpi-card kpi-birdies">
+      <div class="kpi-icon">🐦</div>
+      <div class="kpi-value" id="kpi-birdies">—</div>
+      <div class="kpi-label">Total Birdies</div>
+      <div class="kpi-sub" id="kpi-birdies-sub">in selected year</div>
+    </div>
+    <div class="kpi-card kpi-avg">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-value" id="kpi-avg">—</div>
+      <div class="kpi-label">Avg Gross Score</div>
+      <div class="kpi-sub" id="kpi-avg-sub">in selected year</div>
+    </div>
+  </div>
+
+  <!-- Handicap Trend Chart -->
+  <div class="chart-card">
+    <div class="chart-title">Handicap Differential — Per Round</div>
+    <div class="chart-subtitle" id="chart-subtitle">Rolling best-8-of-20 index shown as line</div>
+    <div class="chart-wrap">
+      <canvas id="hc-chart"></canvas>
+    </div>
+    <div id="dash-empty" class="empty-state" style="display:none">No rounds found for this year.</div>
+  </div>
+
+  <!-- Best Rounds Table -->
+  <div class="chart-card">
+    <div class="chart-title">Best Rounds (Lowest Differentials)</div>
+    <div class="table-wrap" style="margin-top:1rem">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Course</th><th>Tee</th>
+          <th>Score</th><th>Net</th><th>Differential</th><th>Birdies</th>
+        </tr></thead>
+        <tbody id="best-rounds-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SCORES ENTRY PAGE -->
+<div id="page-scores" class="page">
+  <div class="section-title">Enter Score</div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Golf Course</label>
+      <select id="score-course" onchange="onCourseChange()">
+        <option value="">— Select Course —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Tee</label>
+      <select id="score-tee" onchange="onTeeChange()">
+        <option value="">— Select Tee —</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="rating-slope-row">
+    <div class="stat-pill">
+      <div class="val" id="display-rating">—</div>
+      <div class="lbl">Course Rating</div>
+    </div>
+    <div class="stat-pill">
+      <div class="val" id="display-slope">—</div>
+      <div class="lbl">Slope</div>
+    </div>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="score-date">
+    </div>
+    <div class="form-group">
+      <label>Score (Gross)</label>
+      <input type="number" id="score-gross" min="50" max="180" placeholder="e.g. 85" oninput="calcHandicap()">
+    </div>
+    <div class="form-group">
+      <label>Net Score</label>
+      <input type="number" id="score-net" min="50" max="180" placeholder="e.g. 78" oninput="calcHandicap()">
+    </div>
+    <div class="form-group">
+      <label>Handicap Differential</label>
+      <input type="text" id="score-handicap" readonly placeholder="Auto-calculated">
+    </div>
+    <div class="form-group">
+      <label>Birdies</label>
+      <input type="number" id="score-birdies" min="0" max="18" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label>Eagles</label>
+      <input type="number" id="score-eagle" min="0" max="18" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label>FIR (Fairways in Regulation)</label>
+      <input type="number" id="score-fir" min="0" max="18" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label>GIR (Greens in Regulation)</label>
+      <input type="number" id="score-gir" min="0" max="18" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label>Putts</label>
+      <input type="number" id="score-putts" min="0" max="72" placeholder="0">
+    </div>
+  </div>
+
+  <div class="handicap-display">
+    <div class="handicap-value" id="hc-big">—</div>
+    <div>
+      <div class="handicap-label">Handicap Differential</div>
+      <div class="handicap-formula">(Net Score − Rating) ÷ (Slope × 113)</div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="saveScore()">Save Score</button>
+    <button class="btn btn-secondary" onclick="resetScoreForm()">Clear</button>
+  </div>
+
+  <!-- CSV Import: Scores -->
+  <div class="csv-box" style="margin-top:2.5rem">
+    <div class="csv-box-title">CSV Import — Scores</div>
+    <div class="csv-format">
+      Column order (header row required):
+      <code>Golf Course, Tee, Date, Score, Net Score, Handicap, Birdies, FIR, GIR, Putts, Eagle</code>
+      Date format: YYYY-MM-DD &nbsp;|&nbsp; Handicap is auto-recalculated if course exists in your Courses table.
+      <code>Pebble Beach Golf Links, Blue, 2024-06-15, 85, 78, 4.8, 2, 9, 7, 32, 0</code>
+    </div>
+    <div class="drop-zone" id="drop-scores"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handleDrop(event,'scores')">
+      <input type="file" accept=".csv,text/csv" onchange="handleFileInput(event,'scores')">
+      <div class="drop-zone-text"><span>📂</span>Drop CSV here or click to browse</div>
+    </div>
+    <div id="import-result-scores" class="import-result"></div>
+    <div style="margin-top:0.75rem">
+      <button class="btn btn-export" onclick="exportCSV('scores')">⬇ Export Scores CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCORE HISTORY PAGE -->
+<div id="page-scores-log" class="page">
+  <div class="section-title">Score History</div>
+
+  <div class="table-wrap">
+    <table id="scores-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Course</th>
+          <th>Tee</th>
+          <th>Score</th>
+          <th>Net</th>
+          <th>Handicap</th>
+          <th>Birdies</th>
+          <th>Eagles</th>
+          <th>FIR</th>
+          <th>GIR</th>
+          <th>Putts</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="scores-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- COURSES PAGE -->
+<div id="page-courses" class="page">
+  <div class="section-title">Golf Courses</div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Golf Course Name</label>
+      <input type="text" id="course-name" placeholder="e.g. Pebble Beach Golf Links">
+    </div>
+    <div class="form-group">
+      <label>Tee Name</label>
+      <input type="text" id="course-tee" placeholder="e.g. Blue, White, Red">
+    </div>
+    <div class="form-group">
+      <label>Course Rating</label>
+      <input type="number" id="course-rating" step="0.1" min="60" max="80" placeholder="e.g. 72.4">
+    </div>
+    <div class="form-group">
+      <label>Slope Rating</label>
+      <input type="number" id="course-slope" min="55" max="155" placeholder="e.g. 131">
+    </div>
+  </div>
+
+  <div class="btn-row" style="margin-bottom:2.5rem;">
+    <button class="btn btn-primary" onclick="addCourse()">Add Course / Tee</button>
+    <button class="btn btn-secondary" onclick="resetCourseForm()">Clear</button>
+  </div>
+
+  <!-- CSV Import: Courses -->
+  <div class="csv-box">
+    <div class="csv-box-title">CSV Import — Courses</div>
+    <div class="csv-format">
+      Column order (header row required):
+      <code>Golf Course, Tee, Rating, Slope</code>
+      Example row:
+      <code>Pebble Beach Golf Links, Blue, 75.5, 145</code>
+    </div>
+    <div class="drop-zone" id="drop-courses"
+         ondragover="event.preventDefault();this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="handleDrop(event,'courses')">
+      <input type="file" accept=".csv,text/csv" onchange="handleFileInput(event,'courses')">
+      <div class="drop-zone-text"><span>📂</span>Drop CSV here or click to browse</div>
+    </div>
+    <div id="import-result-courses" class="import-result"></div>
+    <div style="margin-top:0.75rem">
+      <button class="btn btn-export" onclick="exportCSV('courses')">⬇ Export Courses CSV</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="courses-table">
+      <thead>
+        <tr>
+          <th>Golf Course</th>
+          <th>Tee</th>
+          <th>Rating</th>
+          <th>Slope</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="courses-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Data Store (Capacitor Preferences API with localStorage fallback) ────────
+let courses = [];
+let scores  = [];
+
+// Detect if running inside Capacitor
+const isCapacitor = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+
+async function storageSet(key, value) {
+  try {
+    if (isCapacitor) {
+      await window.Capacitor.Plugins.Preferences.set({ key, value: JSON.stringify(value) });
+    } else {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch(e) {
+    localStorage.setItem(key, JSON.stringify(value)); // fallback
+  }
+}
+
+async function storageGet(key) {
+  try {
+    if (isCapacitor) {
+      const { value } = await window.Capacitor.Plugins.Preferences.get({ key });
+      return value ? JSON.parse(value) : null;
+    } else {
+      const v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : null;
+    }
+  } catch(e) {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : null;
+  }
+}
+
+async function save() {
+  await storageSet('golf_courses', courses);
+  await storageSet('golf_scores',  scores);
+}
+
+async function loadData() {
+  courses = (await storageGet('golf_courses')) || [];
+  scores  = (await storageGet('golf_scores'))  || [];
+}
+
+// ─── Navigation ─────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'dashboard')   renderDashboard();
+  if (name === 'scores-log')  renderScoresTable();
+  if (name === 'courses')     renderCoursesTable();
+  if (name === 'scores')      populateCourseDropdown();
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─── Courses ─────────────────────────────────────────────────────────────────
+function addCourse() {
+  const name   = document.getElementById('course-name').value.trim();
+  const tee    = document.getElementById('course-tee').value.trim();
+  const rating = parseFloat(document.getElementById('course-rating').value);
+  const slope  = parseInt(document.getElementById('course-slope').value);
+
+  if (!name || !tee || isNaN(rating) || isNaN(slope)) {
+    toast('Please fill in all fields.'); return;
+  }
+  courses.push({ id: Date.now(), name, tee, rating, slope });
+  save();
+  renderCoursesTable();
+  populateCourseDropdown();
+  resetCourseForm();
+  toast('Course added ✓');
+}
+
+function deleteCourse(id) {
+  courses = courses.filter(c => c.id !== id);
+  save();
+  renderCoursesTable();
+  populateCourseDropdown();
+}
+
+function resetCourseForm() {
+  ['course-name','course-tee','course-rating','course-slope'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+
+function renderCoursesTable() {
+  const tbody = document.getElementById('courses-tbody');
+  if (!courses.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">No courses added yet.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = courses.map(c => `
+    <tr>
+      <td>${c.name}</td>
+      <td><span class="badge">${c.tee}</span></td>
+      <td class="numeric">${c.rating.toFixed(1)}</td>
+      <td class="numeric">${c.slope}</td>
+      <td><button class="btn btn-danger" onclick="deleteCourse(${c.id})">Remove</button></td>
+    </tr>
+  `).join('');
+}
+
+// ─── Score Form ───────────────────────────────────────────────────────────────
+function populateCourseDropdown() {
+  const sel = document.getElementById('score-course');
+  const cur = sel.value;
+  const names = [...new Set(courses.map(c => c.name))];
+  sel.innerHTML = '<option value="">— Select Course —</option>' +
+    names.map(n => `<option value="${n}" ${n===cur?'selected':''}>${n}</option>`).join('');
+  if (cur) onCourseChange();
+}
+
+function onCourseChange() {
+  const name = document.getElementById('score-course').value;
+  const teeSel = document.getElementById('score-tee');
+  const tees = courses.filter(c => c.name === name);
+  teeSel.innerHTML = '<option value="">— Select Tee —</option>' +
+    tees.map(t => `<option value="${t.tee}">${t.tee}</option>`).join('');
+  document.getElementById('display-rating').textContent = '—';
+  document.getElementById('display-slope').textContent  = '—';
+  calcHandicap();
+}
+
+function onTeeChange() {
+  const name = document.getElementById('score-course').value;
+  const tee  = document.getElementById('score-tee').value;
+  const rec  = courses.find(c => c.name === name && c.tee === tee);
+  if (rec) {
+    document.getElementById('display-rating').textContent = rec.rating.toFixed(1);
+    document.getElementById('display-slope').textContent  = rec.slope;
+  } else {
+    document.getElementById('display-rating').textContent = '—';
+    document.getElementById('display-slope').textContent  = '—';
+  }
+  calcHandicap();
+}
+
+function calcHandicap() {
+  const name = document.getElementById('score-course').value;
+  const tee  = document.getElementById('score-tee').value;
+  const rec  = courses.find(c => c.name === name && c.tee === tee);
+  const net  = parseFloat(document.getElementById('score-net').value);
+
+  if (rec && !isNaN(net)) {
+    const hc = (net - rec.rating) / (rec.slope / 113);
+    const hcRounded = Math.round(hc * 10) / 10;
+    document.getElementById('score-handicap').value = hcRounded.toFixed(1);
+    document.getElementById('hc-big').textContent   = hcRounded.toFixed(1);
+  } else {
+    document.getElementById('score-handicap').value = '';
+    document.getElementById('hc-big').textContent   = '—';
+  }
+}
+
+function saveScore() {
+  const course   = document.getElementById('score-course').value;
+  const tee      = document.getElementById('score-tee').value;
+  const date     = document.getElementById('score-date').value;
+  const gross    = parseInt(document.getElementById('score-gross').value);
+  const net      = parseInt(document.getElementById('score-net').value);
+  const handicap = document.getElementById('score-handicap').value;
+  const birdies  = parseInt(document.getElementById('score-birdies').value) || 0;
+  const eagle    = parseInt(document.getElementById('score-eagle').value)   || 0;
+  const fir      = parseInt(document.getElementById('score-fir').value)     || 0;
+  const gir      = parseInt(document.getElementById('score-gir').value)     || 0;
+  const putts    = parseInt(document.getElementById('score-putts').value)   || 0;
+
+  if (!course || !tee || !date || isNaN(gross) || isNaN(net)) {
+    toast('Please fill in Course, Tee, Date, Score, and Net Score.'); return;
+  }
+
+  scores.push({ id: Date.now(), course, tee, date, gross, net, handicap, birdies, eagle, fir, gir, putts });
+  save();
+  resetScoreForm();
+  toast('Score saved ✓');
+}
+
+function deleteScore(id) {
+  scores = scores.filter(s => s.id !== id);
+  save();
+  renderScoresTable();
+}
+
+function resetScoreForm() {
+  document.getElementById('score-course').value  = '';
+  document.getElementById('score-tee').innerHTML = '<option value="">— Select Tee —</option>';
+  document.getElementById('score-date').value    = today();
+  ['score-gross','score-net','score-birdies','score-eagle','score-fir','score-gir','score-putts'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('score-handicap').value = '';
+  document.getElementById('hc-big').textContent   = '—';
+  document.getElementById('display-rating').textContent = '—';
+  document.getElementById('display-slope').textContent  = '—';
+}
+
+function renderScoresTable() {
+  const tbody = document.getElementById('scores-tbody');
+  if (!scores.length) {
+    tbody.innerHTML = '<tr><td colspan="12"><div class="empty-state">No scores recorded yet.</div></td></tr>';
+    return;
+  }
+  const sorted = [...scores].sort((a,b) => b.date.localeCompare(a.date));
+  tbody.innerHTML = sorted.map(s => `
+    <tr>
+      <td>${s.date}</td>
+      <td>${s.course}</td>
+      <td><span class="badge">${s.tee}</span></td>
+      <td class="numeric">${s.gross}</td>
+      <td class="numeric">${s.net}</td>
+      <td class="numeric" style="color:var(--gold)">${s.handicap}</td>
+      <td class="numeric">${s.birdies}</td>
+      <td class="numeric">${s.eagle}</td>
+      <td class="numeric">${s.fir}</td>
+      <td class="numeric">${s.gir}</td>
+      <td class="numeric">${s.putts}</td>
+      <td><button class="btn btn-danger" onclick="deleteScore(${s.id})">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+let chartInstance = null;
+
+function populateYearFilter() {
+  const sel = document.getElementById('dash-year');
+  const currentYear = new Date().getFullYear();
+  const years = scores.length
+    ? [...new Set(scores.map(s => s.date.substring(0,4)))].sort((a,b) => b-a)
+    : [String(currentYear)];
+  if (!years.includes(String(currentYear))) years.unshift(String(currentYear));
+  const prev = sel.value;
+  sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (prev && years.includes(prev)) sel.value = prev;
+}
+
+function calcHandicapIndex() {
+  // Take last 20 rounds (all time, sorted by date desc), pick best 8 differentials
+  const sorted = [...scores]
+    .filter(s => !isNaN(parseFloat(s.handicap)))
+    .sort((a,b) => b.date.localeCompare(a.date))
+    .slice(0, 20);
+  if (!sorted.length) return null;
+  const diffs = sorted.map(s => parseFloat(s.handicap)).sort((a,b) => a-b);
+  const take = Math.min(8, diffs.length);
+  const best = diffs.slice(0, take);
+  return best.reduce((a,b) => a+b, 0) / best.length;
+}
+
+function renderDashboard() {
+  populateYearFilter();
+  const year = document.getElementById('dash-year').value;
+
+  // Filter scores for selected year
+  const yearScores = scores.filter(s => s.date.startsWith(year))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  // ── KPI: Handicap Index (always uses last 20 across all time) ──
+  const hcIndex = calcHandicapIndex();
+  document.getElementById('kpi-hc').textContent = hcIndex !== null ? hcIndex.toFixed(1) : '—';
+  const usedCount = Math.min(8, [...scores].filter(s=>!isNaN(parseFloat(s.handicap))).length);
+  document.getElementById('kpi-hc-sub').textContent =
+    hcIndex !== null ? `Best ${usedCount} of last ${Math.min(20,scores.length)} rounds` : 'Not enough data';
+
+  // ── KPI: Games ──
+  document.getElementById('kpi-games').textContent = yearScores.length || '0';
+  document.getElementById('kpi-games-sub').textContent = `rounds in ${year}`;
+
+  // ── KPI: Birdies ──
+  const totalBirdies = yearScores.reduce((a,s) => a + (parseInt(s.birdies)||0), 0);
+  document.getElementById('kpi-birdies').textContent = totalBirdies;
+  document.getElementById('kpi-birdies-sub').textContent = `birdies in ${year}`;
+
+  // ── KPI: Avg Score ──
+  const withScore = yearScores.filter(s => !isNaN(parseInt(s.gross)));
+  const avgScore = withScore.length
+    ? (withScore.reduce((a,s) => a + parseInt(s.gross), 0) / withScore.length).toFixed(1)
+    : '—';
+  document.getElementById('kpi-avg').textContent = avgScore;
+  document.getElementById('kpi-avg-sub').textContent = avgScore !== '—' ? `avg gross in ${year}` : 'no data';
+
+  // ── Chart ──
+  const emptyEl = document.getElementById('dash-empty');
+  const chartWrap = document.querySelector('.chart-wrap');
+  if (!yearScores.length) {
+    emptyEl.style.display = 'block';
+    chartWrap.style.display = 'none';
+    if (chartInstance) { chartInstance = null; }
+  } else {
+    emptyEl.style.display = 'none';
+    chartWrap.style.display = 'block';
+    drawChart(yearScores, year);
+  }
+
+  // ── Best Rounds Table ──
+  const sorted = [...yearScores]
+    .filter(s => !isNaN(parseFloat(s.handicap)))
+    .sort((a,b) => parseFloat(a.handicap) - parseFloat(b.handicap))
+    .slice(0, 8);
+  const tbody = document.getElementById('best-rounds-tbody');
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">No rounds with handicap data.</div></td></tr>';
+  } else {
+    tbody.innerHTML = sorted.map((s,i) => `
+      <tr>
+        <td>${s.date}</td>
+        <td>${s.course}</td>
+        <td><span class="badge">${s.tee}</span></td>
+        <td class="numeric">${s.gross}</td>
+        <td class="numeric">${s.net}</td>
+        <td class="numeric" style="color:var(--gold);font-weight:500">${parseFloat(s.handicap).toFixed(1)}</td>
+        <td class="numeric">${s.birdies||0}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+function drawChart(yearScores, year) {
+  const canvas = document.getElementById('hc-chart');
+  const ctx = canvas.getContext('2d');
+
+  // Set actual pixel size
+  const wrap = canvas.parentElement;
+  canvas.width  = wrap.clientWidth  * window.devicePixelRatio;
+  canvas.height = wrap.clientHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+
+  const diffs = yearScores.map(s => parseFloat(s.handicap)).filter(v => !isNaN(v));
+  const labels = yearScores.map(s => s.date.substring(5)); // MM-DD
+
+  if (!diffs.length) return;
+
+  // Rolling handicap index line (best 8 of last 20 up to each round)
+  const allSorted = [...scores].sort((a,b) => a.date.localeCompare(b.date));
+  const rollingIndex = yearScores.map(s => {
+    const upTo = allSorted.filter(r => r.date <= s.date && !isNaN(parseFloat(r.handicap)));
+    const last20 = upTo.slice(-20);
+    if (!last20.length) return null;
+    const sortedDiffs = last20.map(r => parseFloat(r.handicap)).sort((a,b)=>a-b);
+    const take = Math.min(8, sortedDiffs.length);
+    return sortedDiffs.slice(0,take).reduce((a,b)=>a+b,0)/take;
+  });
+
+  const allVals = [...diffs, ...rollingIndex.filter(v=>v!==null)];
+  const minV = Math.min(...allVals);
+  const maxV = Math.max(...allVals);
+  const pad  = Math.max((maxV - minV) * 0.2, 1);
+  const lo   = minV - pad;
+  const hi   = maxV + pad;
+
+  const PAD_L = 48, PAD_R = 20, PAD_T = 16, PAD_B = 36;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  const n     = diffs.length;
+
+  function xPos(i) { return PAD_L + (n === 1 ? plotW/2 : (i / (n-1)) * plotW); }
+  function yPos(v) { return PAD_T + plotH - ((v - lo) / (hi - lo)) * plotH; }
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  const gridSteps = 5;
+  ctx.strokeStyle = 'rgba(74,140,74,0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= gridSteps; i++) {
+    const v = lo + (hi - lo) * (i / gridSteps);
+    const y = yPos(v);
+    ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(PAD_L + plotW, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(245,240,232,0.35)';
+    ctx.font = `${10 * window.devicePixelRatio / window.devicePixelRatio}px DM Mono, monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(1), PAD_L - 6, y + 4);
+  }
+
+  // Bar chart for differentials
+  const barW = Math.max(4, Math.min(32, plotW / n - 4));
+  diffs.forEach((v, i) => {
+    const x = xPos(i);
+    const y = yPos(v);
+    const barH = yPos(lo) - y;
+    // Color bars: below 0 = great (gold), else green gradient by value
+    const ratio = (v - lo) / (hi - lo);
+    const alpha = 0.5 + ratio * 0.3;
+    ctx.fillStyle = v <= 0
+      ? `rgba(201,168,76,${alpha})`
+      : `rgba(107,191,107,${alpha})`;
+    ctx.beginPath();
+    ctx.roundRect(x - barW/2, y, barW, barH, [3,3,0,0]);
+    ctx.fill();
+  });
+
+  // Rolling index line
+  ctx.strokeStyle = 'rgba(201,168,76,0.9)';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap  = 'round';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  let started = false;
+  rollingIndex.forEach((v, i) => {
+    if (v === null) return;
+    const x = xPos(i), y = yPos(v);
+    if (!started) { ctx.moveTo(x, y); started = true; }
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots on rolling line
+  rollingIndex.forEach((v, i) => {
+    if (v === null) return;
+    ctx.beginPath();
+    ctx.arc(xPos(i), yPos(v), 3.5, 0, Math.PI*2);
+    ctx.fillStyle = '#c9a84c';
+    ctx.fill();
+  });
+
+  // X-axis labels (show up to 8 evenly spaced)
+  ctx.fillStyle = 'rgba(245,240,232,0.45)';
+  ctx.font = `10px DM Mono, monospace`;
+  ctx.textAlign = 'center';
+  const step = Math.max(1, Math.ceil(n / 8));
+  for (let i = 0; i < n; i += step) {
+    ctx.fillText(labels[i], xPos(i), H - PAD_B + 16);
+  }
+
+  // Legend
+  ctx.fillStyle = 'rgba(107,191,107,0.7)';
+  ctx.fillRect(PAD_L, PAD_T - 2, 10, 10);
+  ctx.fillStyle = 'rgba(245,240,232,0.5)';
+  ctx.textAlign = 'left';
+  ctx.fillText('Differential', PAD_L + 14, PAD_T + 8);
+
+  ctx.strokeStyle = '#c9a84c';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD_L + 110, PAD_T + 3); ctx.lineTo(PAD_L + 120, PAD_T + 3); ctx.stroke();
+  ctx.fillStyle = 'rgba(245,240,232,0.5)';
+  ctx.fillText('Handicap Index', PAD_L + 124, PAD_T + 8);
+}
+
+// ─── CSV Utilities ────────────────────────────────────────────────────────────
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return null;
+
+  // Auto-detect delimiter: semicolon (French/European Excel) or comma
+  const firstLine = lines[0];
+  const delimiter = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ',';
+
+  return lines.slice(1).map(line => {
+    const cols = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === delimiter && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    cols.push(cur.trim());
+    return cols;
+  });
+}
+
+function handleDrop(event, type) {
+  event.preventDefault();
+  document.getElementById('drop-' + type).classList.remove('drag-over');
+  const file = event.dataTransfer.files[0];
+  if (file) processFile(file, type);
+}
+
+function handleFileInput(event, type) {
+  const file = event.target.files[0];
+  if (file) processFile(file, type);
+  event.target.value = '';
+}
+
+function processFile(file, type) {
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    showImportResult(type, 'error', 'Please upload a .csv file.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => importCSV(e.target.result, type);
+  reader.onerror = () => showImportResult(type, 'error', 'Could not read file. Please try again.');
+  reader.readAsText(file);
+}
+
+async function importCSV(text, type) {
+  const rows = parseCSV(text);
+  if (!rows || !rows.length) {
+    showImportResult(type, 'error', 'No data rows found. Check the file format.');
+    return;
+  }
+
+  let added = 0, skipped = 0, errors = [];
+
+  if (type === 'courses') {
+    rows.forEach((cols, i) => {
+      if (cols.length < 4) {
+        errors.push(`Row ${i+2}: needs 4 columns (got ${cols.length})`);
+        skipped++; return;
+      }
+      const [name, tee, ratingStr, slopeStr] = cols;
+      const rating = parseFloat(ratingStr);
+      const slope  = parseInt(slopeStr);
+      if (!name)            { errors.push(`Row ${i+2}: missing course name`);  skipped++; return; }
+      if (!tee)             { errors.push(`Row ${i+2}: missing tee name`);     skipped++; return; }
+      if (isNaN(rating))    { errors.push(`Row ${i+2}: invalid rating "${ratingStr}"`); skipped++; return; }
+      if (isNaN(slope))     { errors.push(`Row ${i+2}: invalid slope "${slopeStr}"`);   skipped++; return; }
+      // Skip exact duplicates (same name + tee)
+      if (courses.find(c => c.name.toLowerCase() === name.toLowerCase() && c.tee.toLowerCase() === tee.toLowerCase())) {
+        skipped++; return;
+      }
+      courses.push({ id: Date.now() + Math.random(), name, tee, rating, slope });
+      added++;
+    });
+    await save();
+    renderCoursesTable();
+    populateCourseDropdown();
+
+  } else if (type === 'scores') {
+    rows.forEach((cols, i) => {
+      if (cols.length < 11) {
+        errors.push(`Row ${i+2}: needs 11 columns (got ${cols.length})`);
+        skipped++; return;
+      }
+      const [course, tee, date, grossStr, netStr, hcStr, birdiesStr, firStr, girStr, puttsStr, eagleStr] = cols;
+      const gross   = parseInt(grossStr);
+      const net     = parseInt(netStr);
+      const birdies = parseInt(birdiesStr) || 0;
+      const fir     = parseInt(firStr)     || 0;
+      const gir     = parseInt(girStr)     || 0;
+      const putts   = parseInt(puttsStr)   || 0;
+      const eagle   = parseInt(eagleStr)   || 0;
+
+      if (!course || !tee || !date || isNaN(gross) || isNaN(net)) { skipped++; return; }
+
+      const rec = courses.find(c => c.name === course && c.tee === tee);
+      const handicap = rec
+        ? (Math.round(((net - rec.rating) / (rec.slope / 113)) * 10) / 10).toFixed(1)
+        : (parseFloat(hcStr) || '').toString();
+
+      scores.push({ id: Date.now() + Math.random(), course, tee, date, gross, net, handicap, birdies, eagle, fir, gir, putts });
+      added++;
+    });
+    await save();
+    renderScoresTable();
+  }
+
+  let msg = added > 0
+    ? `✓ Imported ${added} record${added !== 1 ? 's' : ''}.`
+    : `No records imported.`;
+  if (skipped)        msg += ` ${skipped} row${skipped !== 1 ? 's' : ''} skipped.`;
+  if (errors.length)  msg += `\n\nDetails:\n` + errors.slice(0, 5).join('\n') + (errors.length > 5 ? `\n...and ${errors.length - 5} more` : '');
+
+  showImportResult(type, added > 0 ? 'success' : 'error', msg);
+  if (added) toast(`${added} ${type === 'courses' ? 'course' : 'score'} row${added>1?'s':''} imported ✓`);
+}
+
+function showImportResult(type, cls, msg) {
+  const el = document.getElementById('import-result-' + type);
+  el.className = 'import-result ' + cls;
+  el.style.whiteSpace = 'pre-wrap';
+  el.textContent = msg;
+  setTimeout(() => { el.className = 'import-result'; el.textContent = ''; }, 8000);
+}
+
+function escapeCSV(val) {
+  const s = String(val ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+}
+
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(escapeCSV).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function exportCSV(type) {
+  if (type === 'courses') {
+    if (!courses.length) { toast('No courses to export.'); return; }
+    const rows = [['Golf Course','Tee','Rating','Slope'],
+      ...courses.map(c => [c.name, c.tee, c.rating, c.slope])];
+    downloadCSV('golf-courses.csv', rows);
+  } else {
+    if (!scores.length) { toast('No scores to export.'); return; }
+    const rows = [['Golf Course','Tee','Date','Score','Net Score','Handicap','Birdies','FIR','GIR','Putts','Eagle'],
+      ...scores.map(s => [s.course, s.tee, s.date, s.gross, s.net, s.handicap, s.birdies, s.fir, s.gir, s.putts, s.eagle])];
+    downloadCSV('golf-scores.csv', rows);
+  }
+  toast('CSV downloaded ✓');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  await loadData();
+
+  document.getElementById('score-date').value = today();
+  populateCourseDropdown();
+
+  // Seed sample courses if empty
+  if (!courses.length) {
+    courses = [
+      { id: 1, name: "Pebble Beach Golf Links", tee: "Blue",  rating: 75.5, slope: 145 },
+      { id: 2, name: "Pebble Beach Golf Links", tee: "White", rating: 73.1, slope: 138 },
+      { id: 3, name: "Augusta National",         tee: "Gold",  rating: 76.2, slope: 148 },
+      { id: 4, name: "Augusta National",         tee: "White", rating: 72.4, slope: 131 },
+    ];
+    await save();
+    populateCourseDropdown();
+  }
+
+  // Seed sample scores if empty
+  if (!scores.length) {
+    const seed = [
+      { course:"Pebble Beach Golf Links", tee:"White", date:"2025-03-08", gross:88, net:80, birdies:1, fir:7, gir:8, putts:33, eagle:0 },
+      { course:"Augusta National",        tee:"White", date:"2025-04-12", gross:91, net:83, birdies:0, fir:6, gir:6, putts:35, eagle:0 },
+      { course:"Pebble Beach Golf Links", tee:"White", date:"2025-05-03", gross:85, net:77, birdies:2, fir:9, gir:9, putts:30, eagle:0 },
+      { course:"Augusta National",        tee:"White", date:"2025-05-21", gross:87, net:79, birdies:1, fir:8, gir:8, putts:31, eagle:0 },
+      { course:"Pebble Beach Golf Links", tee:"White", date:"2025-06-07", gross:83, net:75, birdies:3, fir:10,gir:10,putts:28, eagle:1 },
+      { course:"Augusta National",        tee:"White", date:"2025-06-28", gross:90, net:82, birdies:1, fir:7, gir:7, putts:34, eagle:0 },
+      { course:"Pebble Beach Golf Links", tee:"White", date:"2025-07-14", gross:82, net:74, birdies:3, fir:11,gir:11,putts:27, eagle:0 },
+      { course:"Augusta National",        tee:"White", date:"2025-08-02", gross:86, net:78, birdies:2, fir:8, gir:9, putts:30, eagle:0 },
+      { course:"Pebble Beach Golf Links", tee:"White", date:"2025-08-19", gross:84, net:76, birdies:2, fir:9, gir:10,putts:29, eagle:0 },
+      { course:"Augusta National",        tee:"White", date:"2025-09-06", gross:89, net:81, birdies:1, fir:7, gir:7, putts:33, eagle:0 },
+      { course:"Pebble Beach Golf Links", tee:"Blue",  date:"2025-09-27", gross:92, net:84, birdies:0, fir:6, gir:5, putts:36, eagle:0 },
+      { course:"Augusta National",        tee:"White", date:"2025-10-11", gross:85, net:77, birdies:2, fir:9, gir:9, putts:30, eagle:0 },
+    ];
+    seed.forEach(s => {
+      const rec = courses.find(c => c.name === s.course && c.tee === s.tee);
+      const hc  = rec ? (Math.round(((s.net - rec.rating) / (rec.slope / 113)) * 10) / 10).toFixed(1) : '';
+      scores.push({ id: Date.now() + Math.random(), ...s, handicap: hc });
+    });
+    await save();
+  }
+
+  renderDashboard();
+}
+
+// Boot — wait for Capacitor deviceready if native, else run immediately
+if (isCapacitor) {
+  document.addEventListener('deviceready', init, false);
+} else {
+  init();
+}
+</script>
+</body>
+</html>
