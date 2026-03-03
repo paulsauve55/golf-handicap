@@ -191,10 +191,7 @@ td.nr{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;f
 .mfooter{margin-top:0.8rem;font-size:0.62rem;color:var(--txt3);text-align:center;}
 
 /* Setup banner */
-.sbanner{background:#fffbeb;border:1px solid #fde68a;border-radius:var(--r);padding:0.9rem 1.1rem;margin-bottom:1.25rem;font-size:0.72rem;line-height:1.85;color:var(--txt);}
-.sbanner strong{color:#92400e;display:block;margin-bottom:0.35rem;font-size:0.75rem;}
-.sbanner code{background:#fef3c7;padding:0.08rem 0.36rem;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;color:#92400e;}
-.sbanner.hidden{display:none;}
+
 </style>
 
 </head>
@@ -238,12 +235,6 @@ td.nr{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;f
 
 <!-- Pages -->
 <div id="page-dashboard" class="page active">
-  <div class="sbanner hidden" id="setup-banner">
-    <strong>☁️ Enable Cloud Sync — 3 steps</strong>
-    1. Create a free project at <code>supabase.com</code><br>
-    2. Run the SQL from the included <code>SUPABASE_SETUP.sql</code> file<br>
-    3. Paste your <code>Project URL</code> and <code>anon key</code> at the top of this HTML file
-  </div>
   <div class="dhrow">
     <div class="stitle" style="margin-bottom:0;border:none;padding:0">Dashboard</div>
     <div class="yfwrap">
@@ -413,7 +404,7 @@ async function doAuth(){
 }
 function skipAuth(){ document.getElementById('auth-modal').classList.add('hidden'); setSS('','Local only'); }
 function syncClick(){
-  if(!sbOk){ document.getElementById('setup-banner').classList.remove('hidden'); toast('Configure Supabase to enable cloud sync'); return; }
+  if(!sbOk){ setSS('','Local only'); return; }
   if(user){ if(confirm('Sign out?')){ sb.auth.signOut(); user=null; setSS('','Sign in'); toast('Signed out'); } }
   else document.getElementById('auth-modal').classList.remove('hidden');
 }
@@ -791,7 +782,7 @@ async function init(){
 
   fillCourseDD(); renderDash();
 
-  if(!sbOk){ document.getElementById('setup-banner').classList.remove('hidden'); setSS('','Local only'); return; }
+  if(!sbOk){ setSS('','Local only'); return; }
   try{
     const{data:{session}}=await sb.auth.getSession();
     if(session?.user){ user=session.user; setSS('syncing','Syncing…'); await loadSB(); setSS('connected',user.email.split('@')[0]); renderAll(); }
