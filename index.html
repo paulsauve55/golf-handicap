@@ -303,7 +303,8 @@ td.nr{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;f
   </div>
   <div class="csvbox" style="margin-top:1.75rem">
     <div class="csvtit">CSV Import — Scores</div>
-    <div class="csvfmt">Column order (header row required):<code>Golf Course, Tee, Date, Score, Net Score, Handicap, Birdies, FIR, GIR, Putts, Eagle</code>Date: YYYY-MM-DD · Handicap auto-recalculated if course exists.<code>Pebble Beach Golf Links, Blue, 2024-06-15, 85, 78, 4.8, 2, 9, 7, 32, 0</code></div>
+    <div class="csvfmt">Header row required — columns can be in any order, delimiter auto-detected (comma or semicolon). Required: Course, Tee, Date, Score, Net Score. Date format: YYYY-MM-DD.<code>Golf Course, Tee, Date, Score, Net Score, Handicap, Birdies, FIR, GIR, Putts, Eagle</code>Example with different order:<code>Date; Score; Net Score; Golf Course; Tee
+2024-06-15; 85; 78; Pebble Beach Golf Links; Blue</code></div>
     <div class="dz" id="drop-scores" ondragover="event.preventDefault();this.classList.add('dov')" ondragleave="this.classList.remove('dov')" ondrop="onDrop(event,'scores')">
       <input type="file" accept=".csv,text/csv" onchange="onFile(event,'scores')">
       <div class="dztxt"><span>📂</span>Drop CSV here or click to browse</div>
@@ -335,7 +336,8 @@ td.nr{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;f
   </div>
   <div class="csvbox">
     <div class="csvtit">CSV Import — Courses</div>
-    <div class="csvfmt">Column order (header row required):<code>Golf Course, Tee, Rating, Slope</code>Example:<code>Pebble Beach Golf Links, Blue, 75.5, 145</code></div>
+    <div class="csvfmt">Header row required — columns can be in any order, delimiter auto-detected (comma or semicolon).<code>Golf Course, Tee, Rating, Slope</code>Example:<code>Slope; Rating; Tee; Golf Course
+145; 75.5; Blue; Pebble Beach Golf Links</code></div>
     <div class="dz" id="drop-courses" ondragover="event.preventDefault();this.classList.add('dov')" ondragleave="this.classList.remove('dov')" ondrop="onDrop(event,'courses')">
       <input type="file" accept=".csv,text/csv" onchange="onFile(event,'courses')">
       <div class="dztxt"><span>📂</span>Drop CSV here or click to browse</div>
@@ -623,48 +625,117 @@ function drawChart(ys){
 }
 
 /* ─── CSV ────────────────────────────────────────────────────── */
-function parseCSV(txt){
-  const lines=txt.trim().split(/\r?\n/).filter(l=>l.trim());
-  if(lines.length<2) return null;
-  const d=lines[0].split(';').length>lines[0].split(',').length?';':',';
-  return lines.slice(1).map(line=>{
-    const cols=[];let cur='',inQ=false;
-    for(const ch of line){ if(ch==='"')inQ=!inQ; else if(ch===d&&!inQ){cols.push(cur.trim());cur='';}else cur+=ch; }
-    cols.push(cur.trim()); return cols;
-  });
+
+/* Parse a CSV/SSV line respecting quoted fields.
+   Accepts any single-char delimiter. */
+function parseLine(line, delim){
+  const cols=[]; let cur='', inQ=false;
+  for(const ch of line){
+    if(ch==='"'){ inQ=!inQ; }
+    else if(ch===delim && !inQ){ cols.push(cur.trim()); cur=''; }
+    else cur+=ch;
+  }
+  cols.push(cur.trim());
+  return cols;
 }
+
+/* Detect delimiter: whichever of , or ; produces more columns on the header row */
+function detectDelim(headerLine){
+  const sc=headerLine.split(';').length, cc=headerLine.split(',').length;
+  return sc>cc ? ';' : ',';
+}
+
+/* Normalise a header string for fuzzy matching:
+   lower-case, strip spaces/underscores/hyphens, collapse common synonyms */
+function normHdr(s){
+  return s.toLowerCase()
+    .replace(/[\s_\-\/]+/g,'')
+    .replace(/golfcourse|coursename|course/,'course')
+    .replace(/teecolou?r|teebox|tee/,'tee')
+    .replace(/courserating|cr|rating/,'rating')
+    .replace(/sloperating|sr|slope/,'slope')
+    .replace(/grossscore|gross|score/,'gross')
+    .replace(/netscore|net/,'net')
+    .replace(/handicapdiff?erential|handicap|hcp|hdcp/,'handicap')
+    .replace(/birdies|birdie/,'birdies')
+    .replace(/fairwaysinregulation|fir|fairways/,'fir')
+    .replace(/greensinregulation|gir|greens/,'gir')
+    .replace(/totalputts|putts|putt/,'putts')
+    .replace(/eagle|eagles/,'eagle');
+}
+
+/* Build a {fieldName -> colIndex} map from headers array */
+function buildMap(headers){
+  const map={};
+  headers.forEach((h,i)=>{ map[normHdr(h)]=i; });
+  return map;
+}
+
+/* Safe column getter — returns '' if column missing */
+function col(row, map, key){ const i=map[key]; return (i!==undefined && i<row.length) ? row[i] : ''; }
+
 function onDrop(ev,type){ ev.preventDefault(); document.getElementById('drop-'+type).classList.remove('dov'); const f=ev.dataTransfer.files[0]; if(f) readFile(f,type); }
 function onFile(ev,type){ const f=ev.target.files[0]; if(f) readFile(f,type); ev.target.value=''; }
 function readFile(f,type){ if(!f.name.toLowerCase().endsWith('.csv')){showRes(type,'er','Please upload a .csv file.');return;} const r=new FileReader(); r.onload=e=>doImport(e.target.result,type); r.onerror=()=>showRes(type,'er','Could not read file.'); r.readAsText(f); }
+
 async function doImport(txt,type){
-  const rows=parseCSV(txt);
-  if(!rows?.length){showRes(type,'er','No data rows found.');return;}
-  let added=0,skipped=0,errors=[];
+  const lines=txt.trim().split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length<2){showRes(type,'er','No data rows found (need a header row + at least one data row).');return;}
+
+  const delim = detectDelim(lines[0]);
+  const headers = parseLine(lines[0], delim);
+  const map = buildMap(headers);
+  const dataLines = lines.slice(1);
+
+  let added=0, skipped=0, errors=[];
+
   if(type==='courses'){
-    for(const[i,c]of rows.entries()){
-      if(c.length<4){errors.push(`Row ${i+2}: needs 4 columns (got ${c.length})`);skipped++;continue;}
-      const[name,tee,rStr,sStr]=c, rating=parseFloat(rStr), slope=parseInt(sStr);
-      if(!name){errors.push(`Row ${i+2}: missing name`);skipped++;continue;}
-      if(!tee){errors.push(`Row ${i+2}: missing tee`);skipped++;continue;}
+    // Required fields
+    const REQUIRED=['course','tee','rating','slope'];
+    const missing=REQUIRED.filter(k=>map[k]===undefined);
+    if(missing.length){
+      showRes(type,'er',`Header row is missing required columns: ${missing.join(', ')}\n\nFound headers: ${headers.join(', ')}`);
+      return;
+    }
+    for(const[i,line]of dataLines.entries()){
+      const c=parseLine(line,delim);
+      const name=col(c,map,'course'), tee=col(c,map,'tee');
+      const rStr=col(c,map,'rating'), sStr=col(c,map,'slope');
+      const rating=parseFloat(rStr), slope=parseInt(sStr);
+      if(!name||!tee){skipped++;continue;}
       if(isNaN(rating)){errors.push(`Row ${i+2}: invalid rating "${rStr}"`);skipped++;continue;}
       if(isNaN(slope)){errors.push(`Row ${i+2}: invalid slope "${sStr}"`);skipped++;continue;}
       if(courses.find(x=>x.name.toLowerCase()===name.toLowerCase()&&x.tee.toLowerCase()===tee.toLowerCase())){skipped++;continue;}
       const co={id:uid(),name,tee,rating,slope}; courses.push(co); await upsertSB('courses',co); added++;
     }
     await saveLocal(); renderCoursesTable(); fillCourseDD();
+
   } else {
-    for(const[i,c]of rows.entries()){
-      if(c.length<11){errors.push(`Row ${i+2}: needs 11 columns (got ${c.length})`);skipped++;continue;}
-      const[course,tee,date,gS,nS,hS,bS,fS,giS,pS,eS]=c;
-      const gross=parseInt(gS),net=parseInt(nS);
+    // Required fields for scores
+    const REQUIRED=['course','tee','date','gross','net'];
+    const missing=REQUIRED.filter(k=>map[k]===undefined);
+    if(missing.length){
+      showRes(type,'er',`Header row is missing required columns: ${missing.join(', ')}\n\nFound headers: ${headers.join(', ')}`);
+      return;
+    }
+    for(const[i,line]of dataLines.entries()){
+      const c=parseLine(line,delim);
+      const course=col(c,map,'course'), tee=col(c,map,'tee'), date=col(c,map,'date');
+      const gS=col(c,map,'gross'), nS=col(c,map,'net'), hS=col(c,map,'handicap');
+      const bS=col(c,map,'birdies'), fS=col(c,map,'fir'), giS=col(c,map,'gir');
+      const pS=col(c,map,'putts'), eS=col(c,map,'eagle');
+      const gross=parseInt(gS), net=parseInt(nS);
       if(!course||!tee||!date||isNaN(gross)||isNaN(net)){skipped++;continue;}
       const rec=courses.find(x=>x.name===course&&x.tee===tee);
       const handicap=rec?(Math.round(((net-rec.rating)/(rec.slope/113))*10)/10).toFixed(1):(parseFloat(hS)||'').toString();
-      const s={id:uid(),course,tee,date,gross,net,handicap,birdies:parseInt(bS)||0,eagle:parseInt(eS)||0,fir:parseInt(fS)||0,gir:parseInt(giS)||0,putts:parseInt(pS)||0};
+      const s={id:uid(),course,tee,date,gross,net,handicap,
+               birdies:parseInt(bS)||0,eagle:parseInt(eS)||0,
+               fir:parseInt(fS)||0,gir:parseInt(giS)||0,putts:parseInt(pS)||0};
       scores.push(s); await upsertSB('scores',s); added++;
     }
     await saveLocal(); renderHistTable();
   }
+
   let msg=added>0?`✓ Imported ${added} record${added!==1?'s':''}.`:'No records imported.';
   if(skipped) msg+=` ${skipped} row${skipped!==1?'s':''} skipped.`;
   if(errors.length) msg+='\n\nDetails:\n'+errors.slice(0,5).join('\n')+(errors.length>5?`\n...and ${errors.length-5} more`:'');
